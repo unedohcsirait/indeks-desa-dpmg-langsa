@@ -21,6 +21,9 @@ declare module "http" {
   }
 }
 
+// Essential for secure cookies in production behind a proxy (like Railway/Vercel)
+app.set("trust proxy", 1);
+
 app.use(
   session({
     secret: process.env.SESSION_SECRET || "your-secret-key-change-in-production",
