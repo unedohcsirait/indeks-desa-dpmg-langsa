@@ -1,60 +1,45 @@
-import { build } from 'vite';
-import { build as esbuild } from 'esbuild';
+import { execSync } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { platform } from 'os';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
+const isWindows = platform() === 'win32';
+const binExt = isWindows ? '.cmd' : '';
 
-async function buildClient() {
-  console.log('Building client...');
-  await build({
-    root: path.resolve(rootDir, 'client'),
-    build: {
-      outDir: path.resolve(rootDir, 'dist/public'),
-      emptyOutDir: true,
-    },
-  });
-  console.log('Client built successfully!');
-}
-
-async function buildServer() {
-  console.log('Building server...');
-  await esbuild({
-    entryPoints: [path.resolve(rootDir, 'server/index.ts')],
-    bundle: true,
-    platform: 'node',
-    target: 'node20',
-    format: 'cjs',
-    outfile: path.resolve(rootDir, 'dist/index.cjs'),
-    external: [
-      'express',
-      'pg',
-      'bcrypt',
-      'drizzle-orm',
-      'passport',
-      'express-session',
-      'dotenv',
-      'ws',
-      'connect-pg-simple',
-      'memorystore',
-      'csv-parse',
-      'exceljs',
-      'xlsx',
-      'openid-client',
-      'passport-local',
-    ],
-  });
-  console.log('Server built successfully!');
+function runCommand(command: string, description: string) {
+  console.log(`\n${description}...`);
+  try {
+    execSync(command, { 
+      cwd: rootDir, 
+      stdio: 'inherit',
+      env: { ...process.env, NODE_ENV: 'production' },
+      shell: isWindows ? 'powershell.exe' : undefined
+    });
+    console.log(`✅ ${description} completed!`);
+  } catch (error) {
+    console.error(`❌ ${description} failed!`);
+    throw error;
+  }
 }
 
 async function main() {
   try {
-    await buildClient();
-    await buildServer();
-    console.log('✅ Build completed successfully!');
+    // Build client using Vite CLI (this will use vite.config.ts automatically)
+    const viteBin = path.join(rootDir, 'node_modules', '.bin', `vite${binExt}`);
+    runCommand(`"${viteBin}" build`, 'Building client');
+    
+    // Build server using esbuild CLI
+    const esbuildBin = path.join(rootDir, 'node_modules', '.bin', `esbuild${binExt}`);
+    runCommand(
+      `"${esbuildBin}" server/index.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/index.cjs --external:express --external:pg --external:bcrypt --external:drizzle-orm --external:passport --external:express-session --external:dotenv --external:ws --external:connect-pg-simple --external:memorystore --external:csv-parse --external:exceljs --external:xlsx --external:openid-client --external:passport-local`,
+      'Building server'
+    );
+    
+    console.log('\n✅ Build completed successfully!');
   } catch (error) {
-    console.error('❌ Build failed:', error);
+    console.error('\n❌ Build failed:', error);
     process.exit(1);
   }
 }
